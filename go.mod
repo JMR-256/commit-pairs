@@ -1,3 +1,3 @@
-module pairs
+module gitpairs
 
-go 1.21
+go 1.22.6
