@@ -1,0 +1,1 @@
+Commit Pairs is a tool which wraps git allowing for easier addition of co-authors to your commit messages
