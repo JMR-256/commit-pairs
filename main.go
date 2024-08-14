@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,8 +11,14 @@ import (
 const InitialsDelimiter = ':'
 
 func main() {
+	contributorInitials := os.Args[1:]
+
+	if len(contributorInitials) < 1 {
+		log.Fatalf("Missing command line arguments. Please use the format 'git pcommit [primary intials] [co author initials]'")
+	}
+
 	contributors := resolveContributors()
-	fmt.Println(contributors)
+	writeToCommitTemplate(resolveCoAuthorDetails(contributorInitials[1:], contributors))
 }
 
 func resolveContributors() map[string][]string {
@@ -61,4 +66,22 @@ func resolveContributors() map[string][]string {
 	}
 
 	return initialsToDetails
+}
+
+func resolveCoAuthorDetails(contributorInitials []string, contributors map[string][]string) map[string][]string {
+	coAuthorDetails := make(map[string][]string)
+
+	for _, value := range contributorInitials {
+		if _, ok := contributors[value]; ok {
+			coAuthorDetails[value] = contributors[value]
+		} else {
+			log.Printf("Warning: could not find user: %v ... skipping", value)
+		}
+	}
+
+	return coAuthorDetails
+}
+
+func writeToCommitTemplate(contributorDetails map[string][]string) {
+
 }
