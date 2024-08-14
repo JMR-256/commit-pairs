@@ -11,6 +11,8 @@ import (
 )
 
 const InitialsDelimiter = ':'
+const PairsConfigFile = ".pairs"
+const CommitTemplateFile = ".commitPairsTemplate"
 
 func main() {
 	contributorInitials := os.Args[1:]
@@ -19,27 +21,29 @@ func main() {
 		log.Fatalf("Missing command line arguments. Please use the format 'git pcommit [primary intials] [co author initials]'")
 	}
 
-	contributors, domain := parsePairsFile()
+	homeDirectory := resolveHomeDirectory()
+	contributors, domain := parsePairsFile(homeDirectory)
 	primary := contributors[contributorInitials[0]]
 	setPrimaryUsername(primary[0])
 	setPrimaryEmail(primary[1], domain)
 
-	writeToCommitTemplate(resolveCoAuthorDetails(contributorInitials[1:], contributors))
+	//TODO write co authors to template.
+	//TODO if message provided with -m then we should append our authors to the end of the message
+	//TODO if message not provided then we should run the git commit command which should read from template
+
+	writeToCommitTemplate(resolveCoAuthorDetails(contributorInitials[1:], contributors), domain, homeDirectory)
 }
 
-func parsePairsFile() (map[string][]string, string) {
-	pairsFilePath, err := func() (string, error) {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-
-		return filepath.Join(homeDir, ".pairs"), nil
-	}()
-
+func resolveHomeDirectory() string {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatalf("Failed to get the home directory or join the path: %v", err)
+		log.Fatalf("Could not resolve home directory: %v", err)
 	}
+	return homeDir
+}
+
+func parsePairsFile(homeDirectory string) (map[string][]string, string) {
+	pairsFilePath := filepath.Join(homeDirectory, PairsConfigFile)
 	pairsFile, fileOpenErr := os.Open(pairsFilePath)
 
 	if fileOpenErr != nil {
@@ -124,6 +128,19 @@ func resolveCoAuthorDetails(contributorInitials []string, contributors map[strin
 	return coAuthorDetails
 }
 
-func writeToCommitTemplate(coAuthorDetails map[string][]string) {
+func writeToCommitTemplate(coAuthorDetails map[string][]string, domain string, path string) {
+	var sb strings.Builder
+	sb.WriteString("\n")
 
+	for _, value := range coAuthorDetails {
+		line := "Co-authored-by:" + value[0] + " <" + value[1] + "@" + domain + ">\n"
+		sb.WriteString(line)
+	}
+
+	commitTemplatePath := filepath.Join(path, CommitTemplateFile)
+	err := os.WriteFile(commitTemplatePath, []byte(sb.String()), 0666)
+
+	if err != nil {
+		log.Fatalf("Failed to write commit template file: %v", err)
+	}
 }
