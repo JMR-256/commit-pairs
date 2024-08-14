@@ -17,11 +17,14 @@ func main() {
 		log.Fatalf("Missing command line arguments. Please use the format 'git pcommit [primary intials] [co author initials]'")
 	}
 
-	contributors := resolveContributors()
+	contributors, _ := parsePairsFile()
+	primary := contributors[contributorInitials[0]]
+	setPrimaryAuthor(primary[0], primary[1])
+
 	writeToCommitTemplate(resolveCoAuthorDetails(contributorInitials[1:], contributors))
 }
 
-func resolveContributors() map[string][]string {
+func parsePairsFile() (map[string][]string, string) {
 	pairsFilePath, err := func() (string, error) {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -40,11 +43,17 @@ func resolveContributors() map[string][]string {
 		log.Fatalf("Open file failure %v", fileOpenErr)
 	}
 
-	defer pairsFile.Close()
+	defer func(pairsFile *os.File) {
+		err := pairsFile.Close()
+		if err != nil {
+			log.Fatalf("Error closing file: %v", err)
+		}
+	}(pairsFile)
 
 	scanner := bufio.NewScanner(pairsFile)
 	var lines []string
 	initialsToDetails := make(map[string][]string)
+	var domain string
 	for scanner.Scan() {
 		lines = append(lines, strings.TrimSpace(scanner.Text()))
 		components := strings.Split(strings.TrimSpace(scanner.Text()), " ")
@@ -59,13 +68,28 @@ func resolveContributors() map[string][]string {
 
 			initialsToDetails[initials] = []string{name, emailName}
 		}
+		if len(components) == 2 && strings.ToLower(components[0]) == "domain:" {
+			domain = components[1]
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("Could not scan file: %v", fileOpenErr)
 	}
 
-	return initialsToDetails
+	if len(initialsToDetails) == 0 {
+		log.Fatalf("Could not find listings in pairs file. Please ensure following format is used \njd: John Doe; john.doe")
+	}
+
+	if domain == "" {
+		log.Fatalf("Could not find a domain for pair emails. Please ensure the following format is used \ndomain: google.com")
+	}
+
+	return initialsToDetails, domain
+}
+
+func setPrimaryAuthor(fullname string, email string) {
+
 }
 
 func resolveCoAuthorDetails(contributorInitials []string, contributors map[string][]string) map[string][]string {
@@ -82,6 +106,6 @@ func resolveCoAuthorDetails(contributorInitials []string, contributors map[strin
 	return coAuthorDetails
 }
 
-func writeToCommitTemplate(contributorDetails map[string][]string) {
+func writeToCommitTemplate(coAuthorDetails map[string][]string) {
 
 }
