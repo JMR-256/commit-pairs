@@ -32,6 +32,7 @@ func main() {
 	//TODO if message not provided then we should run the git commit command which should read from template
 
 	writeToCommitTemplate(resolveCoAuthorDetails(contributorInitials[1:], contributors), domain, homeDirectory)
+	executeCommitWithTemplate(homeDirectory)
 }
 
 func resolveHomeDirectory() string {
@@ -128,12 +129,14 @@ func resolveCoAuthorDetails(contributorInitials []string, contributors map[strin
 	return coAuthorDetails
 }
 
+// Write co authors to commit template file to be read with -t flag on commit
+// We do this so that authors appear automatically in native text editor when not providing message
 func writeToCommitTemplate(coAuthorDetails map[string][]string, domain string, path string) {
 	var sb strings.Builder
 	sb.WriteString("\n")
 
 	for _, value := range coAuthorDetails {
-		line := "Co-authored-by:" + value[0] + " <" + value[1] + "@" + domain + ">\n"
+		line := "Co-authored-by: " + value[0] + " <" + value[1] + "@" + domain + ">\n"
 		sb.WriteString(line)
 	}
 
@@ -143,4 +146,21 @@ func writeToCommitTemplate(coAuthorDetails map[string][]string, domain string, p
 	if err != nil {
 		log.Fatalf("Failed to write commit template file: %v", err)
 	}
+}
+
+func executeCommitWithTemplate(pathToTemplate string) {
+	commitTemplatePath := filepath.Join(pathToTemplate, CommitTemplateFile)
+	cmd := exec.Command("git", "commit", "-t", commitTemplatePath)
+
+	// Set the command's standard input/output/error to the current process's
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+
+	if err != nil {
+		log.Fatalf("Something went wrong when running git commit: %v", err)
+	}
+
+	fmt.Printf("Opening native text editor to write commit message ...\n")
 }
