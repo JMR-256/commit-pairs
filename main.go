@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -17,9 +19,10 @@ func main() {
 		log.Fatalf("Missing command line arguments. Please use the format 'git pcommit [primary intials] [co author initials]'")
 	}
 
-	contributors, _ := parsePairsFile()
+	contributors, domain := parsePairsFile()
 	primary := contributors[contributorInitials[0]]
-	setPrimaryAuthor(primary[0], primary[1])
+	setPrimaryUsername(primary[0])
+	setPrimaryEmail(primary[1], domain)
 
 	writeToCommitTemplate(resolveCoAuthorDetails(contributorInitials[1:], contributors))
 }
@@ -88,8 +91,23 @@ func parsePairsFile() (map[string][]string, string) {
 	return initialsToDetails, domain
 }
 
-func setPrimaryAuthor(fullname string, email string) {
+func setPrimaryUsername(fullName string) {
+	cmd := exec.Command("git", "config", "--global", "user.name", fullName)
+	err := cmd.Run()
+	if err != nil {
+		log.Fatalf("Something went wrong setting the git username: %v", err)
+	}
+	fmt.Printf("Successfully updated git config user.name: %v\n", fullName)
+}
 
+func setPrimaryEmail(emailName string, domain string) {
+	email := emailName + "@" + domain
+	cmd := exec.Command("git", "config", "--global", "user.email", email)
+	err := cmd.Run()
+	if err != nil {
+		log.Fatalf("Something went wrong setting the git email: %v", err)
+	}
+	fmt.Printf("Successfully updated git config user.email: %v\n", email)
 }
 
 func resolveCoAuthorDetails(contributorInitials []string, contributors map[string][]string) map[string][]string {
