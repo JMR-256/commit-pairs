@@ -27,9 +27,7 @@ func main() {
 	setPrimaryUsername(primary[0])
 	setPrimaryEmail(primary[1], domain)
 
-	//TODO write co authors to template.
 	//TODO if message provided with -m then we should append our authors to the end of the message
-	//TODO if message not provided then we should run the git commit command which should read from template
 
 	writeToCommitTemplate(resolveCoAuthorDetails(contributorInitials[1:], contributors), domain, homeDirectory)
 	executeCommitWithTemplate(homeDirectory)
@@ -149,6 +147,8 @@ func writeToCommitTemplate(coAuthorDetails map[string][]string, domain string, p
 }
 
 func executeCommitWithTemplate(pathToTemplate string) {
+	fmt.Printf("Opening native text editor to write commit message ...\n")
+
 	commitTemplatePath := filepath.Join(pathToTemplate, CommitTemplateFile)
 	cmd := exec.Command("git", "commit", "-t", commitTemplatePath)
 
@@ -158,9 +158,8 @@ func executeCommitWithTemplate(pathToTemplate string) {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 
+	//TODO improve error handling
 	if err != nil {
-		log.Fatalf("Something went wrong when running git commit: %v", err)
+		os.Exit(1)
 	}
-
-	fmt.Printf("Opening native text editor to write commit message ...\n")
 }
