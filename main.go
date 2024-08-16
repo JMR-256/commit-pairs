@@ -18,7 +18,7 @@ func main() {
 	contributorInitials := os.Args[1:]
 
 	if len(contributorInitials) < 1 {
-		log.Fatalf("Missing command line arguments. Please use the format 'git pcommit [primary intials] [co author initials]'")
+		log.Fatalf("Missing command line arguments. Please use the format 'git pc [primary intials] [co author initials]'")
 	}
 
 	homeDirectory := resolveHomeDirectory()
@@ -131,7 +131,6 @@ func resolveCoAuthorDetails(contributorInitials []string, contributors map[strin
 // We do this so that authors appear automatically in native text editor when not providing message
 func writeToCommitTemplate(coAuthorDetails map[string][]string, domain string, path string) {
 	var sb strings.Builder
-	sb.WriteString("\n")
 
 	for _, value := range coAuthorDetails {
 		line := "Co-authored-by: " + value[0] + " <" + value[1] + "@" + domain + ">\n"
