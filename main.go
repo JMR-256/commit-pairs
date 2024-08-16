@@ -15,7 +15,17 @@ const PairsConfigFile = ".pairs"
 const CommitTemplateFile = ".commitPairsTemplate"
 
 func main() {
-	contributorInitials := os.Args[1:]
+
+	args := os.Args[1:]
+	var commitMessage string
+	var contributorInitials []string
+
+	if args[0] == "-m" {
+		commitMessage = args[1]
+		contributorInitials = args[2:]
+	} else {
+		contributorInitials = args
+	}
 
 	if len(contributorInitials) < 1 {
 		log.Fatalf("Missing command line arguments. Please use the format 'git pc [primary intials] [co author initials]'")
@@ -28,9 +38,17 @@ func main() {
 	setPrimaryEmail(primary[1], domain)
 
 	//TODO if message provided with -m then we should append our authors to the end of the message
+	coAuthors := resolveCoAuthorDetails(contributorInitials[1:], contributors, domain)
+	commit(commitMessage, coAuthors, homeDirectory)
+}
 
-	writeToCommitTemplate(resolveCoAuthorDetails(contributorInitials[1:], contributors), domain, homeDirectory)
-	executeCommitWithTemplate(homeDirectory)
+func commit(commitMessage string, coAuthors string, homeDirectory string) {
+	if commitMessage == "" {
+		writeToCommitTemplate(coAuthors, homeDirectory)
+		executeCommitWithTemplate(homeDirectory)
+	} else {
+		executeCommitWithoutTemplate(commitMessage, coAuthors)
+	}
 }
 
 func resolveHomeDirectory() string {
@@ -113,7 +131,7 @@ func setPrimaryEmail(emailName string, domain string) {
 	fmt.Printf("Successfully updated git config user.email: %v\n", email)
 }
 
-func resolveCoAuthorDetails(contributorInitials []string, contributors map[string][]string) map[string][]string {
+func resolveCoAuthorDetails(contributorInitials []string, contributors map[string][]string, domain string) string {
 	coAuthorDetails := make(map[string][]string)
 
 	for _, value := range contributorInitials {
@@ -124,21 +142,21 @@ func resolveCoAuthorDetails(contributorInitials []string, contributors map[strin
 		}
 	}
 
-	return coAuthorDetails
+	var formattedCoAuthors strings.Builder
+
+	for _, value := range coAuthorDetails {
+		line := "Co-authored-by: " + value[0] + " <" + value[1] + "@" + domain + ">\n"
+		formattedCoAuthors.WriteString(line)
+	}
+
+	return formattedCoAuthors.String()
 }
 
 // Write co authors to commit template file to be read with -t flag on commit
 // We do this so that authors appear automatically in native text editor when not providing message
-func writeToCommitTemplate(coAuthorDetails map[string][]string, domain string, path string) {
-	var sb strings.Builder
-
-	for _, value := range coAuthorDetails {
-		line := "Co-authored-by: " + value[0] + " <" + value[1] + "@" + domain + ">\n"
-		sb.WriteString(line)
-	}
-
+func writeToCommitTemplate(formattedCoAuthors string, path string) {
 	commitTemplatePath := filepath.Join(path, CommitTemplateFile)
-	err := os.WriteFile(commitTemplatePath, []byte(sb.String()), 0666)
+	err := os.WriteFile(commitTemplatePath, []byte(formattedCoAuthors), 0666)
 
 	if err != nil {
 		log.Fatalf("Failed to write commit template file: %v", err)
@@ -147,7 +165,6 @@ func writeToCommitTemplate(coAuthorDetails map[string][]string, domain string, p
 
 func executeCommitWithTemplate(pathToTemplate string) {
 	fmt.Printf("Opening native text editor to write commit message ...\n")
-
 	commitTemplatePath := filepath.Join(pathToTemplate, CommitTemplateFile)
 	cmd := exec.Command("git", "commit", "-t", commitTemplatePath)
 
@@ -157,6 +174,21 @@ func executeCommitWithTemplate(pathToTemplate string) {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 
+	//TODO improve error handling
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+func executeCommitWithoutTemplate(commitMessage string, coAuthors string) {
+	commitMessage = commitMessage + "\n\n" + coAuthors
+	cmd := exec.Command("git", "commit", "-m", commitMessage)
+
+	// Set the command's standard input/output/error to the current process's
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
 	//TODO improve error handling
 	if err != nil {
 		os.Exit(1)
