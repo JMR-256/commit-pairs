@@ -18,43 +18,65 @@ const DaysPairFile = ".daysPair"
 var homeDirectory string
 
 func main() {
-
 	args := os.Args[1:]
-	var commitMessage string
-	var contributorInitials = args
 	homeDirectory = resolveHomeDirectory()
 
-	if len(args) > 0 {
-		if args[0] == "-m" || args[0] == "--message" {
+	var commitMessage string
+	var contributorInitials []string
+
+	if len(args) == 0 {
+		contributorInitials = loadContributorsFromFile()
+	} else {
+		switch args[0] {
+		case "-m", "--message":
+			if len(args) < 2 {
+				log.Fatalf("Error: No commit message provided after %v", args[0])
+			}
 			commitMessage = args[1]
-			contributorInitials = args[2:]
-		} else if args[0] == "-p" || args[0] == "--pairs" {
-			// Allows pair to be saved to file - when not providing initials the pairs saved to this file will be used
-			writeFile(DaysPairFile, strings.Join(args[1:], " "))
+			if len(args[2:]) > 0 {
+				contributorInitials = args[2:]
+			} else {
+				contributorInitials = loadContributorsFromFile()
+			}
+
+		case "-p", "--pairs":
+			writePairsToFile(args[1:])
 			os.Exit(0)
-		} else {
+
+		default:
 			contributorInitials = args
 		}
 	}
 
-	if len(contributorInitials) < 1 {
-		var err error
-		contributorInitials, err = parseDaysPairFile()
-		if err != nil {
-			log.Fatalf("%v\nNo pair set:\nPlease set a pair to write to file with 'git pc -p [primary intials] [co author initials]'\nOR\nProvide a one time pair with 'git pc [primary intials] [co author initials]'", err)
-		}
-	}
+	coAuthors := resolveCommitDetails(contributorInitials)
+	commit(commitMessage, coAuthors)
+}
 
+func loadContributorsFromFile() []string {
+	contributorInitials, err := parseDaysPairFile()
+	if err != nil {
+		log.Fatalf("%v\nNo pair set:\nPlease set a pair to write to file with 'git pc -p [primary initials] [co-author initials]'\nOR\nProvide a one-time pair with 'git pc [primary initials] [co-author initials]'", err)
+	}
+	return contributorInitials
+}
+
+func writePairsToFile(initials []string) {
+	writeFile(DaysPairFile, strings.Join(initials, " "))
+}
+
+func resolveCommitDetails(contributorInitials []string) (coAuthors string) {
 	contributors, domain := parsePairsFile()
+
 	primary := contributors[contributorInitials[0]]
 	if primary == nil {
-		log.Fatalf("Could not find mapping for intials '%v' in %v/%v", contributorInitials[0], homeDirectory, PairsConfigFile)
+		log.Fatalf("Could not find mapping for initials '%v' in %v/%v", contributorInitials[0], homeDirectory, PairsConfigFile)
 	}
+
 	setPrimaryUsername(primary[0])
 	setPrimaryEmail(primary[1], domain)
 
-	coAuthors := resolveCoAuthorDetails(contributorInitials[1:], contributors, domain)
-	commit(commitMessage, coAuthors)
+	coAuthors = resolveCoAuthorDetails(contributorInitials[1:], contributors, domain)
+	return coAuthors
 }
 
 func commit(commitMessage string, coAuthors string) {
