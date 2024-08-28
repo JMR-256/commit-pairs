@@ -13,39 +13,56 @@ import (
 const InitialsDelimiter = ':'
 const PairsConfigFile = ".pairs"
 const CommitTemplateFile = ".commitPairsTemplate"
+const DaysPairFile = ".daysPair"
+
+var homeDirectory string
 
 func main() {
 
 	args := os.Args[1:]
 	var commitMessage string
-	var contributorInitials []string
+	var contributorInitials = args
+	homeDirectory = resolveHomeDirectory()
 
-	if args[0] == "-m" {
-		commitMessage = args[1]
-		contributorInitials = args[2:]
-	} else {
-		contributorInitials = args
+	if len(args) > 0 {
+		if args[0] == "-m" || args[0] == "--message" {
+			commitMessage = args[1]
+			contributorInitials = args[2:]
+		} else if args[0] == "-p" || args[0] == "--pairs" {
+			// Allows pair to be saved to file - when not providing initials the pairs saved to this file will be used
+			writeFile(DaysPairFile, strings.Join(args[1:], " "))
+			os.Exit(0)
+		} else {
+			contributorInitials = args
+		}
 	}
 
 	if len(contributorInitials) < 1 {
-		log.Fatalf("Missing command line arguments. Please use the format 'git pc [primary intials] [co author initials]'")
+		var err error
+		contributorInitials, err = parseDaysPairFile()
+		if err != nil {
+			log.Fatalf("%v\nNo pair set:\nPlease set a pair to write to file with 'git pc -p [primary intials] [co author initials]'\nOR\nProvide a one time pair with 'git pc [primary intials] [co author initials]'", err)
+		}
 	}
 
-	homeDirectory := resolveHomeDirectory()
-	contributors, domain := parsePairsFile(homeDirectory)
+	contributors, domain := parsePairsFile()
 	primary := contributors[contributorInitials[0]]
+	if primary == nil {
+		log.Fatalf("Could not find mapping for intials '%v' in %v/%v", contributorInitials[0], homeDirectory, PairsConfigFile)
+	}
 	setPrimaryUsername(primary[0])
 	setPrimaryEmail(primary[1], domain)
 
-	//TODO if message provided with -m then we should append our authors to the end of the message
 	coAuthors := resolveCoAuthorDetails(contributorInitials[1:], contributors, domain)
-	commit(commitMessage, coAuthors, homeDirectory)
+	commit(commitMessage, coAuthors)
 }
 
-func commit(commitMessage string, coAuthors string, homeDirectory string) {
+func commit(commitMessage string, coAuthors string) {
 	if commitMessage == "" {
-		writeToCommitTemplate(coAuthors, homeDirectory)
-		executeCommitWithTemplate(homeDirectory)
+		// Write co authors to commit template file to be read with -t flag on commit
+		// We do this so that authors appear automatically in native text editor when not providing message
+		writeFile(CommitTemplateFile, coAuthors)
+		executeCommitWithTemplate()
 	} else {
 		executeCommitWithoutTemplate(commitMessage, coAuthors)
 	}
@@ -59,7 +76,36 @@ func resolveHomeDirectory() string {
 	return homeDir
 }
 
-func parsePairsFile(homeDirectory string) (map[string][]string, string) {
+func parseDaysPairFile() ([]string, error) {
+	daysPairFilePath := filepath.Join(homeDirectory, DaysPairFile)
+	daysPairFile, fileOpenErr := os.Open(daysPairFilePath)
+
+	if fileOpenErr != nil {
+		return nil, fileOpenErr
+	}
+
+	defer func(pairsFile *os.File) {
+		err := pairsFile.Close()
+		if err != nil {
+			log.Fatalf("Error closing file: %v", err)
+		}
+	}(daysPairFile)
+
+	scanner := bufio.NewScanner(daysPairFile)
+
+	var initials []string
+	if scanner.Scan() {
+		initials = strings.Split(strings.TrimSpace(scanner.Text()), " ")
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("Could not scan file: %v", fileOpenErr)
+	}
+
+	return initials, nil
+}
+
+func parsePairsFile() (map[string][]string, string) {
 	pairsFilePath := filepath.Join(homeDirectory, PairsConfigFile)
 	pairsFile, fileOpenErr := os.Open(pairsFilePath)
 
@@ -152,20 +198,17 @@ func resolveCoAuthorDetails(contributorInitials []string, contributors map[strin
 	return formattedCoAuthors.String()
 }
 
-// Write co authors to commit template file to be read with -t flag on commit
-// We do this so that authors appear automatically in native text editor when not providing message
-func writeToCommitTemplate(formattedCoAuthors string, path string) {
-	commitTemplatePath := filepath.Join(path, CommitTemplateFile)
-	err := os.WriteFile(commitTemplatePath, []byte(formattedCoAuthors), 0666)
-
+func writeFile(filename string, textToWrite string) {
+	fullPath := filepath.Join(homeDirectory, filename)
+	err := os.WriteFile(fullPath, []byte(textToWrite), 0666)
 	if err != nil {
-		log.Fatalf("Failed to write commit template file: %v", err)
+		log.Fatalf("Failed to write file %s %v", filename, err)
 	}
 }
 
-func executeCommitWithTemplate(pathToTemplate string) {
+func executeCommitWithTemplate() {
 	fmt.Printf("Opening native text editor to write commit message ...\n")
-	commitTemplatePath := filepath.Join(pathToTemplate, CommitTemplateFile)
+	commitTemplatePath := filepath.Join(homeDirectory, CommitTemplateFile)
 	cmd := exec.Command("git", "commit", "-t", commitTemplatePath)
 
 	// Set the command's standard input/output/error to the current process's
