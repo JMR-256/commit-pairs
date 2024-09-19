@@ -26,6 +26,7 @@ func main() {
 	helpFlag := flag.Bool("h", false, "Display help message")
 
 	flag.Parse()
+	args := flag.Args()
 
 	if *helpFlag {
 		fmt.Println("Usage:")
@@ -45,18 +46,38 @@ func main() {
 	}
 
 	var commitMessage string
+	var contributorInitials []string
 
 	// Handle the -m flag for commit message
 	if *messageFlag != "" {
 		commitMessage = *messageFlag
+		if len(flag.Args()) > 0 {
+			contributorInitials = flag.Args()
+		}
+	} else {
+		// If no message flag, check if the arguments contain "-m"
+		for i, arg := range args {
+			if arg == "-m" {
+				// If "-m" is found, the next argument should be the commit message
+				if i+1 < len(args) {
+					commitMessage = args[i+1]
+				} else {
+					log.Fatal("Error: No commit message provided after -m")
+				}
+				// The initials are the arguments before "-m"
+				contributorInitials = args[:i]
+				break
+			}
+		}
 	}
 
-	var contributorInitials []string
+	// If "-m" wasn't found in the args, treat all args as contributor initials
+	if commitMessage == "" {
+		contributorInitials = args
+	}
 
-	// If there are remaining arguments, treat them as contributor initials
-	if len(flag.Args()) > 0 {
-		contributorInitials = flag.Args()
-	} else {
+	// If no contributors specified - read from file
+	if len(contributorInitials) == 0 {
 		contributorInitials = loadContributorsFromFile()
 	}
 
