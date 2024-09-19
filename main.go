@@ -51,6 +51,9 @@ func main() {
 	// Handle the -m flag for commit message
 	if *messageFlag != "" {
 		commitMessage = *messageFlag
+		if len(flag.Args()) > 0 {
+			contributorInitials = flag.Args()
+		}
 	} else {
 		// If no message flag, check if the arguments contain "-m"
 		for i, arg := range args {
