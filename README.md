@@ -5,7 +5,7 @@ A tool to wrap Git functionality, allowing for easier addition of co-authors to 
 ## Setup
 
 1. **Compile the Project:**
-   - While in the project root, compile the application using:
+   - While in the project src, compile the application using:
      ```sh
      go build .
      ```
@@ -48,6 +48,25 @@ git pc [primary initials] [co-author initials...]
 ```
 
 This allows you to quickly create commits as a user with any number of co-authors from your organization.
+<br><br><br>
+You can set your contributors for future commits so that you do not need to repeatedly type initials:
+```sh
+git pc [-p] [primary initials] [co-author initials...]
+```
+<br>
+This will save contributors to ~/.daysPair which will be used when initials are omitted:
+
+```sh
+git pc
+```
+<br>
+
+If you prefer, you can use -m flag to specify an inline commit message: 
+```sh
+git pc [-m] "example message" [primary initials] [co-author initials...]
+```
+
+Otherwise you will be prompted to enter a commit message with your native shell text editor
 
 ### Example:
 
